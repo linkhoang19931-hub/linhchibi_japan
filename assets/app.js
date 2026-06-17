@@ -67,6 +67,13 @@ function vrow(it){
     '<div><div class="w jp">'+esc(it.jp)+'</div><div class="r">'+esc(it.romaji)+'</div></div>'+
     '<div class="m">'+esc(it.vi)+'</div><span class="spk">🔊</span></div>';
 }
+// dòng câu dài (kaiwa) - xếp dọc jp/romaji/nghĩa cho dễ đọc
+function phraseLine(it){
+  return '<div class="exline" data-say="'+esc(it.jp)+'">'+
+    '<div><div class="ej jp">'+esc(it.jp)+'</div>'+
+    '<div class="er">'+esc(it.romaji)+'</div>'+
+    '<div class="ev">'+esc(it.vi)+'</div></div><span class="spk">🔊</span></div>';
+}
 function grammarHTML(arr){
   return (arr||[]).map(function(g){
     return '<div class="gcard" style="border-left-color:var(--'+g.accent+')">'+
@@ -330,7 +337,7 @@ function viewKaiwa(key){
     '<h1 class="title">Hội thoại · Kaiwa</h1><div class="subtitle">会話</div>'+
     '<p class="lead">Học giao tiếp theo tình huống thực tế. Bấm vào câu để nghe phát âm.</p></div>'+
     '<div class="kana-tabs">'+tabs+'</div>'+
-    '<div class="page-head" style="margin:8px 0 14px"><h2 class="title" style="font-size:23px">'+esc(t.title)+'</h2><div class="subtitle">'+esc(t.jp)+'</div></div>';
+    '<div class="page-head" style="margin:8px 0 14px"><h2 class="title title-sm">'+esc(t.title)+'</h2><div class="subtitle">'+esc(t.jp)+'</div></div>';
   (t.dialogs||[]).forEach(function(d){
     html += '<div class="gcard" style="border-left-color:var(--mint)"><h3>💬 '+esc(d.title)+'</h3>';
     d.lines.forEach(function(l){
@@ -342,7 +349,7 @@ function viewKaiwa(key){
     html += '</div>';
   });
   if(t.phrases && t.phrases.length){
-    html += '<h2 class="sec">Mẫu câu hữu ích</h2><div class="vgrid">'+ t.phrases.map(vrow).join('') +'</div>';
+    html += '<h2 class="sec">Mẫu câu hữu ích</h2>'+ t.phrases.map(phraseLine).join('');
   }
   html += markDoneBtn('kaiwa');
   wrap.innerHTML = html;
@@ -367,7 +374,7 @@ function viewIndustry(key){
     '<h1 class="title">Từ vựng theo ngành</h1><div class="subtitle">専門用語</div>'+
     '<p class="lead">Từ vựng chuyên môn cho công việc thực tế tại Nhật. Bấm để nghe phát âm.</p></div>'+
     '<div class="kana-tabs">'+tabs+'</div>'+
-    '<div class="page-head" style="margin:8px 0 10px"><h2 class="title" style="font-size:23px">'+it.icon+' '+esc(it.title)+'</h2><div class="subtitle">'+esc(it.jp)+'</div></div>';
+    '<div class="page-head" style="margin:8px 0 10px"><h2 class="title title-sm">'+it.icon+' '+esc(it.title)+'</h2><div class="subtitle">'+esc(it.jp)+'</div></div>';
   (it.groups||[]).forEach(function(g){
     html += '<h2 class="sec">'+esc(g.title)+'</h2><div class="vgrid">'+ g.items.map(vrow).join('') +'</div>';
   });
@@ -462,7 +469,7 @@ function viewKanaQuiz(which){
     var box=wrap.querySelector('#qbox');
     box.innerHTML = '<div class="qbar"><i style="width:'+(i/pool.length*100)+'%"></i></div>'+
       '<div class="qnum">Câu '+(i+1)+'/'+pool.length+' · Điểm: '+score+'</div>'+
-      '<div class="qtext jp" style="font-size:60px;text-align:center">'+esc(cur.jp)+'</div>'+
+      '<div class="qtext jp kana-big">'+esc(cur.jp)+'</div>'+
       '<div class="opts">'+opts.map(function(o){
         return '<button class="opt" data-r="'+esc(o.romaji)+'">'+esc(o.romaji)+'</button>';
       }).join('')+'</div>';
@@ -577,6 +584,11 @@ function route(){
   });
   document.getElementById('tabs').classList.remove('open');
   window.scrollTo(0,0);
+  // trên mobile các dải tab cuộn ngang -> đưa tab đang chọn vào tầm nhìn
+  var activeTab = app.querySelector('.kana-tabs .active');
+  if(activeTab && activeTab.scrollIntoView){
+    try{ activeTab.scrollIntoView({inline:'center',block:'nearest'}); }catch(e){}
+  }
 }
 
 /* global click: mark-done buttons */
