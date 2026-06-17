@@ -1,15 +1,16 @@
-# 🌸 Hành Trình Tiếng Nhật (A → N5)
+# 🌸 Hành Trình Tiếng Nhật (A → N1)
 
-Web tự học tiếng Nhật cho người Việt — từ bảng chữ cái đến trình độ **JLPT N5**.
-Cùng nội dung & phong cách với cuốn sách PDF, nhưng có **phát âm**, **flashcard**, **trắc nghiệm** và **lưu tiến độ**.
+Web tự học tiếng Nhật cho người Việt — từ bảng chữ cái đến trình độ **JLPT N1**.
+Có **phân tab theo trình độ**, **hội thoại giao tiếp (kaiwa)**, **từ vựng chuyên ngành**,
+kèm **phát âm**, **flashcard**, **trắc nghiệm** và **lưu tiến độ**.
 
 ## ✨ Tính năng
 - **Hiragana / Katakana**: bảng đầy đủ (cơ bản + biến âm + âm ghép), bấm để **nghe phát âm**, ẩn romaji để tự kiểm tra.
-- **Chào hỏi**: câu giao tiếp hằng ngày, có phát âm.
-- **Ngữ pháp N5**: 15 mẫu câu cốt lõi, có công thức + ví dụ (bấm nghe).
-- **Từ vựng**: 190 từ theo chủ đề, có **tìm kiếm** (theo nghĩa / romaji / chữ Nhật).
-- **Kanji N5**: 98 chữ Hán, kèm âm On/Kun và âm Hán-Việt.
-- **Flashcard**: luyện nhớ từ vựng bằng thẻ lật.
+- **Trình độ N5 → N1**: chọn cấp độ JLPT, mỗi cấp có tab con **Ngữ pháp / Từ vựng / Kanji** riêng (có công thức, ví dụ, âm Hán-Việt). N5 giữ nguyên 15 mẫu ngữ pháp, 190 từ, 98 kanji.
+- **Giao tiếp (Kaiwa)**: 8 chủ đề tình huống (tự giới thiệu, nhà hàng, mua sắm, hỏi đường, bệnh viện, điện thoại, phỏng vấn, kính ngữ công sở) — hội thoại mẫu + câu hữu ích, bấm nghe.
+- **Chuyên ngành**: từ vựng theo ngành — **IT/CNTT, Điều dưỡng/Y tế, Nhà hàng/Khách sạn, Kinh doanh/Văn phòng, Xây dựng/Cơ khí, Làm đẹp**.
+- **Từ vựng** có **tìm kiếm** (theo nghĩa / romaji / chữ Nhật) trong từng cấp độ.
+- **Flashcard**: chọn được **bộ thẻ** (N5–N1 hoặc theo ngành), thẻ lật.
 - **Trắc nghiệm**: đố kana + đố ngữ pháp N5, chấm điểm và lưu điểm cao nhất.
 - **Lưu tiến độ** tự động trong trình duyệt (localStorage).
 
@@ -22,7 +23,8 @@ Cùng nội dung & phong cách với cuốn sách PDF, nhưng có **phát âm**,
 index.html          # trang chính
 assets/style.css    # giao diện (kawaii)
 assets/app.js       # logic: router, phát âm, flashcard, quiz, tiến độ
-assets/data.js      # toàn bộ nội dung (kana, từ vựng, kanji, ngữ pháp, quiz)
+assets/data.js      # nội dung N5 nền tảng (kana, từ vựng, kanji, ngữ pháp, quiz, chào hỏi)
+assets/data-plus.js # mở rộng: trình độ N4→N1, kaiwa, từ vựng chuyên ngành
 ```
 Hoàn toàn **tĩnh** — không cần cài đặt, không cần server, không cần build.
 

@@ -16,7 +16,7 @@ if(window.speechSynthesis){
   speechSynthesis.onvoiceschanged = pickVoice;
 }
 function jpOnly(s){ // strip romaji/vietnamese, keep japanese for cleaner speech
-  var m = s.match(/[\u3040-\u30ff\u3400-\u9fff々ー]+/g);
+  var m = s.match(/[぀-ヿ㐀-鿿々ー]+/g);
   return m ? m.join('') : s;
 }
 function speak(text){
@@ -31,7 +31,7 @@ function speak(text){
 }
 
 /* ---------- progress (localStorage) ---------- */
-var LESSONS = ['hiragana','katakana','greetings','grammar','vocab','kanji'];
+var LESSONS = ['hiragana','katakana','greetings','level-N5','level-N4','level-N3','level-N2','level-N1','kaiwa','industry'];
 function loadP(){
   try{ return JSON.parse(localStorage.getItem('htn_progress')||'{}'); }
   catch(e){ return {}; }
@@ -58,43 +58,110 @@ function markDoneBtn(id){
   return '<div class="mark-done"><button class="btn '+(done?'ghost':'')+'" data-done="'+id+'">'+
          (done?'✓ Đã hoàn thành':'Đánh dấu đã học xong ✓')+'</button></div>';
 }
+function emptyMsg(){ return '<p class="lead" style="margin-top:20px">Nội dung đang được bổ sung 🍵</p>'; }
+function countItems(sections){ var n=0; (sections||[]).forEach(function(s){ n+=(s.items?s.items.length:0); }); return n; }
+
+/* ---------- reusable renderers ---------- */
+function vrow(it){
+  return '<div class="vrow" data-say="'+esc(it.jp)+'">'+
+    '<div><div class="w jp">'+esc(it.jp)+'</div><div class="r">'+esc(it.romaji)+'</div></div>'+
+    '<div class="m">'+esc(it.vi)+'</div><span class="spk">🔊</span></div>';
+}
+function grammarHTML(arr){
+  return (arr||[]).map(function(g){
+    return '<div class="gcard" style="border-left-color:var(--'+g.accent+')">'+
+      '<h3><span class="chip '+g.accent+'">'+esc(g.chip)+'</span>'+esc(g.title)+'</h3>'+
+      '<div class="formula jp">'+esc(g.formula)+'</div>'+
+      '<ul>'+g.points.map(function(p){return '<li>'+esc(p)+'</li>';}).join('')+'</ul>'+
+      g.examples.map(function(e){
+        return '<div class="exline" data-say="'+esc(e.jp)+'">'+
+          '<div><div class="ej jp">'+esc(e.jp)+'</div>'+
+          '<div class="er">'+esc(e.romaji)+'</div>'+
+          '<div class="ev">'+esc(e.vi)+'</div></div><span class="spk">🔊</span></div>';
+      }).join('')+
+    '</div>';
+  }).join('');
+}
+function kanjiSectionsHTML(sections){
+  return (sections||[]).map(function(g){
+    return '<h2 class="sec">'+esc(g.title)+'</h2><div class="kjgrid">'+
+      g.items.map(function(k){
+        return '<div class="kjcard" data-say="'+esc(k.ch)+'">'+
+          '<div class="ch jp">'+esc(k.ch)+'</div>'+
+          '<div class="info"><div class="mean">'+esc(k.mean)+'</div>'+
+          '<div class="yomi"><b class="on">On:</b> <span class="jp">'+esc(k.on)+'</span></div>'+
+          '<div class="yomi"><b class="kun">Kun:</b> <span class="jp">'+esc(k.kun)+'</span></div>'+
+          '<div class="smp jp">'+k.samples.map(esc).join('<br>')+'</div></div></div>';
+      }).join('')+'</div>';
+  }).join('');
+}
+// vocab block with its own search; returns a DOM element
+function vocabBlock(sections){
+  var box = el('<div class="vblock"></div>');
+  box.innerHTML = '<input class="search" placeholder="🔍 Tìm từ (vd: ăn, taberu, たべる)…"><div class="vb"></div>';
+  function render(q){
+    q=(q||'').toLowerCase().trim();
+    var out='';
+    (sections||[]).forEach(function(sec){
+      var items = sec.items.filter(function(it){
+        if(!q) return true;
+        return (it.jp.toLowerCase().indexOf(q)>=0)||(it.romaji.toLowerCase().indexOf(q)>=0)||(it.vi.toLowerCase().indexOf(q)>=0);
+      });
+      if(!items.length) return;
+      out += '<h2 class="sec">'+esc(sec.title)+'</h2><div class="vgrid">'+items.map(vrow).join('')+'</div>';
+    });
+    if(!out) out='<p class="lead" style="margin-top:20px">Không tìm thấy từ nào khớp 🍵</p>';
+    box.querySelector('.vb').innerHTML = out;
+  }
+  render('');
+  box.addEventListener('input', function(e){ if(e.target.classList.contains('search')) render(e.target.value); });
+  box.addEventListener('click', function(e){ var r=e.target.closest('.vrow'); if(r) speak(r.getAttribute('data-say')); });
+  return box;
+}
 
 /* ---------- HOME ---------- */
 function viewHome(){
   var pct = progressPct();
   var R=52, C=2*Math.PI*R, off=C*(1-pct/100);
-  var cards = [
-    {h:'#hiragana',ic:'🌸',t:'Hiragana',jp:'ひらがな',p:'46 chữ cơ bản + biến âm. Bấm để nghe phát âm.'},
-    {h:'#katakana',ic:'🗾',t:'Katakana',jp:'カタカナ',p:'Chữ cho từ mượn nước ngoài.'},
-    {h:'#greetings',ic:'👋',t:'Chào hỏi',jp:'あいさつ',p:'Câu giao tiếp cơ bản hằng ngày.'},
-    {h:'#grammar',ic:'📘',t:'Ngữ pháp N5',jp:'ぶんぽう',p:'15 mẫu câu cốt lõi, có ví dụ.'},
-    {h:'#vocab',ic:'🍙',t:'Từ vựng',jp:'たんご',p:'190 từ N5 theo chủ đề, có tìm kiếm.'},
-    {h:'#kanji',ic:'🎎',t:'Kanji N5',jp:'かんじ',p:'98 chữ Hán cốt lõi, kèm âm Hán-Việt.'},
-    {h:'#flashcards',ic:'🃏',t:'Flashcard',jp:'フラッシュ',p:'Luyện nhớ từ vựng bằng thẻ lật.'},
-    {h:'#quiz',ic:'✏️',t:'Trắc nghiệm',jp:'クイズ',p:'Kiểm tra ngữ pháp N5. Điểm cao nhất: '+quizBest()+'%'}
+  var groups = [
+    {sec:'Nền tảng', cards:[
+      {h:'#hiragana',ic:'🌸',t:'Hiragana',jp:'ひらがな',p:'46 chữ cơ bản + biến âm. Bấm để nghe phát âm.'},
+      {h:'#katakana',ic:'🗾',t:'Katakana',jp:'カタカナ',p:'Chữ cho từ mượn nước ngoài.'}
+    ]},
+    {sec:'Học theo trình độ', cards:[
+      {h:'#levels',ic:'🎓',t:'Trình độ N5 → N1',jp:'JLPT',p:'Ngữ pháp, từ vựng & kanji theo 5 cấp độ JLPT.'},
+      {h:'#kaiwa',ic:'💬',t:'Giao tiếp · Kaiwa',jp:'かいわ',p:'Hội thoại theo tình huống thực tế, có phát âm.'},
+      {h:'#industry',ic:'🏢',t:'Chuyên ngành',jp:'専門用語',p:'Từ vựng theo ngành: IT, điều dưỡng, nhà hàng…'}
+    ]},
+    {sec:'Luyện tập', cards:[
+      {h:'#flashcards',ic:'🃏',t:'Flashcard',jp:'フラッシュ',p:'Luyện nhớ từ vựng mọi cấp độ bằng thẻ lật.'},
+      {h:'#quiz',ic:'✏️',t:'Trắc nghiệm',jp:'クイズ',p:'Kiểm tra ngữ pháp N5. Điểm cao nhất: '+quizBest()+'%'}
+    ]}
   ];
   var html = ''+
   '<div class="view">'+
     '<div class="hero">'+
       '<div class="htext">'+
-        '<h1>Học tiếng Nhật từ A đến N5 🌸</h1>'+
+        '<h1>Học tiếng Nhật từ A đến N1 🌸</h1>'+
         '<div class="jp-big">にほんご の たび</div>'+
-        '<p>Bộ tự học dành cho người Việt: bảng chữ cái, phát âm, ngữ pháp, từ vựng và kanji — tất cả trong một trang, có phát âm và luyện tập.</p>'+
-        '<a href="#hiragana" class="btn">Bắt đầu học ngay →</a>'+
+        '<p>Bộ tự học dành cho người Việt: bảng chữ cái, ngữ pháp & từ vựng theo trình độ N5→N1, hội thoại giao tiếp và từ vựng chuyên ngành — tất cả trong một trang, có phát âm và luyện tập.</p>'+
+        '<a href="#levels" class="btn">Chọn trình độ học →</a>'+
       '</div>'+
       '<div class="progress-ring">'+
         '<svg width="118" height="118"><circle cx="59" cy="59" r="'+R+'" fill="none" stroke="#FFD9E3" stroke-width="10"/>'+
         '<circle cx="59" cy="59" r="'+R+'" fill="none" stroke="#FF7CA3" stroke-width="10" stroke-linecap="round" stroke-dasharray="'+C+'" stroke-dashoffset="'+off+'"/></svg>'+
         '<div class="pv"><b>'+pct+'%</b><span>tiến độ</span></div>'+
       '</div>'+
-    '</div>'+
-    '<div class="cards">'+ cards.map(function(c){
-        var done = c.h.replace('#','');
-        var badge = (LESSONS.indexOf(done)>=0 && isDone(done)) ? '<span class="badge">✓ xong</span>' : '';
+    '</div>';
+  groups.forEach(function(grp){
+    html += '<h2 class="sec">'+grp.sec+'</h2><div class="cards">'+ grp.cards.map(function(c){
+        var id = c.h.replace('#','');
+        var badge = (LESSONS.indexOf(id)>=0 && isDone(id)) ? '<span class="badge">✓ xong</span>' : '';
         return '<a class="lcard" href="'+c.h+'">'+badge+'<span class="ic">'+c.ic+'</span>'+
                '<h3>'+c.t+'</h3><div class="jp-s">'+c.jp+'</div><p>'+c.p+'</p></a>';
-      }).join('')+'</div>'+
-  '</div>';
+      }).join('')+'</div>';
+  });
+  html += '</div>';
   return el(html);
 }
 
@@ -125,14 +192,7 @@ function viewKana(which){
     var area = wrap.querySelector('#kanaArea');
     var cls = set==='basic' ? 'kgrid' : 'kgrid small';
     var html = '<div class="'+cls+'">';
-    if(set==='basic'){
-      // arrange 46 into rows of 5 with gaps for や/わ rows handled simply by sequence
-      data.forEach(function(k){
-        html += cell(k, true);
-      });
-    } else {
-      data.forEach(function(k){ html += cell(k, false); });
-    }
+    data.forEach(function(k){ html += cell(k, set==='basic'); });
     html += '</div>';
     area.innerHTML = html;
     if(wrap.querySelector('#romTgl').checked) area.firstChild.classList.add('hide-rom');
@@ -143,7 +203,6 @@ function viewKana(which){
       '<div class="rom">'+esc(k.romaji)+'</div>'+
       (withEx?'<div class="exw">'+esc(k.ex||'')+'</div>':'')+'</div>';
   }
-  // tab active state
   function syncTabs(){
     wrap.querySelectorAll('.kana-tabs button').forEach(function(b){
       b.classList.toggle('active', b.getAttribute('data-kt')===kanaState[which]);
@@ -165,132 +224,189 @@ function viewKana(which){
   return wrap;
 }
 
-/* ---------- GREETINGS ---------- */
+/* ---------- GREETINGS (vẫn giữ, dùng lại trong giao tiếp) ---------- */
 function viewGreet(){
   var wrap = el('<div class="view"></div>');
-  var html = '<div class="page-head"><span class="chip mint">CHƯƠNG 4</span>'+
+  var html = '<div class="page-head"><span class="chip mint">CHÀO HỎI</span>'+
     '<h1 class="title">Chào hỏi & Giao tiếp</h1><div class="subtitle">あいさつ</div>'+
     '<p class="lead">Những câu giao tiếp thiết yếu nhất. Bấm vào câu để nghe cách đọc.</p></div>';
   D.greet.forEach(function(g){
-    html += '<h2 class="sec">'+esc(g.title)+'</h2><div class="vgrid">';
-    g.items.forEach(function(it){
-      html += vrow(it);
-    });
-    html += '</div>';
+    html += '<h2 class="sec">'+esc(g.title)+'</h2><div class="vgrid">'+ g.items.map(vrow).join('') +'</div>';
   });
   html += markDoneBtn('greetings');
   wrap.innerHTML = html;
-  bindRows(wrap);
-  return wrap;
-}
-function vrow(it){
-  return '<div class="vrow" data-say="'+esc(it.jp)+'">'+
-    '<div><div class="w jp">'+esc(it.jp)+'</div><div class="r">'+esc(it.romaji)+'</div></div>'+
-    '<div class="m">'+esc(it.vi)+'</div><span class="spk">🔊</span></div>';
-}
-function bindRows(wrap){
   wrap.addEventListener('click', function(e){
     var r=e.target.closest('.vrow'); if(r) speak(r.getAttribute('data-say'));
-    var d=e.target.closest('[data-done]'); // handled globally too
-  });
-}
-
-/* ---------- GRAMMAR ---------- */
-function viewGrammar(){
-  var wrap = el('<div class="view"></div>');
-  var html = '<div class="page-head"><span class="chip purple">CHƯƠNG 5</span>'+
-    '<h1 class="title">Ngữ pháp N5</h1><div class="subtitle">ぶんぽう</div>'+
-    '<p class="lead">15 mẫu câu cốt lõi của trình độ N5. Bấm vào ví dụ để nghe phát âm.</p></div>';
-  D.grammar.forEach(function(g){
-    html += '<div class="gcard" style="border-left-color:var(--'+g.accent+')">'+
-      '<h3><span class="chip '+g.accent+'">'+esc(g.chip)+'</span>'+esc(g.title)+'</h3>'+
-      '<div class="formula jp">'+esc(g.formula)+'</div>'+
-      '<ul>'+g.points.map(function(p){return '<li>'+p+'</li>';}).join('')+'</ul>'+
-      g.examples.map(function(e){
-        return '<div class="exline" data-say="'+esc(e.jp)+'">'+
-          '<div><div class="ej jp">'+esc(e.jp)+'</div>'+
-          '<div class="er">'+esc(e.romaji)+'</div>'+
-          '<div class="ev">'+esc(e.vi)+'</div></div><span class="spk">🔊</span></div>';
-      }).join('')+
-    '</div>';
-  });
-  html += markDoneBtn('grammar');
-  wrap.innerHTML = html;
-  wrap.addEventListener('click', function(e){
-    var x=e.target.closest('.exline'); if(x) speak(x.getAttribute('data-say'));
   });
   return wrap;
 }
 
-/* ---------- VOCAB ---------- */
-function viewVocab(){
+/* ---------- LEVELS hub ---------- */
+var LEVELS_ORDER = ['N5','N4','N3','N2','N1'];
+var LEVEL_META = {
+  N5:{ic:'🌱',title:'Tiếng Nhật N5',jp:'JLPT N5',accent:'mint',tagline:'Sơ cấp — nền tảng đầu tiên.',desc:'Trình độ sơ cấp: ngữ pháp, từ vựng và kanji cơ bản nhất để bắt đầu.'},
+  N4:{ic:'🌿',title:'Tiếng Nhật N4',jp:'JLPT N4',accent:'sky',tagline:'Sơ trung cấp — mở rộng giao tiếp.',desc:'Mẫu câu và từ vựng giúp diễn đạt ý định, kinh nghiệm, điều kiện.'},
+  N3:{ic:'🍀',title:'Tiếng Nhật N3',jp:'JLPT N3',accent:'purple',tagline:'Trung cấp — cầu nối quan trọng.',desc:'Cấp độ bản lề: diễn đạt sắc thái, truyền đạt, suy đoán có căn cứ.'},
+  N2:{ic:'🌳',title:'Tiếng Nhật N2',jp:'JLPT N2',accent:'yellow',tagline:'Trung cao cấp — dùng trong công việc.',desc:'Ngữ pháp & từ vựng học thuật, kinh tế xã hội, dùng nơi làm việc.'},
+  N1:{ic:'🎍',title:'Tiếng Nhật N1',jp:'JLPT N1',accent:'pink',tagline:'Cao cấp — trình độ thành thạo.',desc:'Mẫu câu trang trọng, từ Hán ngữ nâng cao, sắc thái tinh tế.'}
+};
+function levelData(code){
+  if(code==='N5') return {grammar:D.grammar, vocab:D.vocab, kanji:D.kanji};
+  return (D.levels && D.levels[code]) || {grammar:[],vocab:[],kanji:[]};
+}
+function viewLevels(){
   var wrap = el('<div class="view"></div>');
-  var head = '<div class="page-head"><span class="chip pink">CHƯƠNG 6</span>'+
-    '<h1 class="title">Từ vựng theo chủ đề</h1><div class="subtitle">たんご</div>'+
-    '<p class="lead">190 từ N5 thiết yếu. Gõ để tìm theo nghĩa, romaji hoặc chữ Nhật. Bấm để nghe.</p></div>'+
-    '<input class="search" id="vsearch" placeholder="🔍 Tìm từ (vd: ăn, taberu, たべる)…">';
-  var body = '<div id="vbody"></div>';
-  wrap.innerHTML = head + body + markDoneBtn('vocab');
+  var cards = LEVELS_ORDER.map(function(c){
+    var m=LEVEL_META[c], ld=levelData(c);
+    var badge = isDone('level-'+c) ? '<span class="badge">✓ xong</span>' : '';
+    var counts = 'Ngữ pháp '+(ld.grammar?ld.grammar.length:0)+' · Kanji '+countItems(ld.kanji)+' · Từ '+countItems(ld.vocab);
+    return '<a class="lcard" href="#level/'+c+'">'+badge+'<span class="ic">'+m.ic+'</span>'+
+      '<h3>'+m.title+'</h3><div class="jp-s">'+m.jp+'</div>'+
+      '<p>'+m.tagline+'<br><b style="color:var(--ink-soft);font-weight:700;font-size:12px">'+counts+'</b></p></a>';
+  }).join('');
+  wrap.innerHTML = '<div class="page-head"><span class="chip purple">TRÌNH ĐỘ</span>'+
+    '<h1 class="title">Học theo trình độ</h1><div class="subtitle">レベル別学習</div>'+
+    '<p class="lead">Chọn cấp độ JLPT từ N5 (sơ cấp) đến N1 (cao cấp). Mỗi cấp gồm ngữ pháp, từ vựng và kanji riêng.</p></div>'+
+    '<div class="cards">'+cards+'</div>';
+  return wrap;
+}
 
-  function render(q){
-    q=(q||'').toLowerCase().trim();
-    var out='';
-    D.vocab.forEach(function(sec){
-      var items = sec.items.filter(function(it){
-        if(!q) return true;
-        return (it.jp.toLowerCase().indexOf(q)>=0)||(it.romaji.toLowerCase().indexOf(q)>=0)||(it.vi.toLowerCase().indexOf(q)>=0);
-      });
-      if(!items.length) return;
-      out += '<h2 class="sec">'+esc(sec.title)+'</h2><div class="vgrid">'+
-             items.map(vrow).join('')+'</div>';
+/* ---------- LEVEL detail (sub-tabs: grammar / vocab / kanji) ---------- */
+var levelSub = {};
+function viewLevel(code){
+  if(LEVELS_ORDER.indexOf(code)<0) code='N5';
+  var ld = levelData(code), m = LEVEL_META[code];
+  var wrap = el('<div class="view"></div>');
+  wrap.innerHTML =
+    '<div class="page-head"><span class="chip '+m.accent+'">TRÌNH ĐỘ</span>'+
+    '<h1 class="title">'+m.title+'</h1><div class="subtitle">'+m.jp+'</div>'+
+    '<p class="lead">'+m.desc+'</p></div>'+
+    '<div class="kana-tabs">'+ LEVELS_ORDER.map(function(c){
+        return '<a class="pill'+(c===code?' active':'')+'" href="#level/'+c+'">'+c+'</a>';
+      }).join('') +'</div>'+
+    '<div class="kana-tabs" id="subTabs">'+
+      '<button data-sub="grammar">📘 Ngữ pháp</button>'+
+      '<button data-sub="vocab">🍙 Từ vựng</button>'+
+      '<button data-sub="kanji">🎎 Kanji</button>'+
+    '</div>'+
+    '<div id="lvlArea"></div>'+
+    markDoneBtn('level-'+code);
+  var area = wrap.querySelector('#lvlArea');
+  function setSub(sub){
+    levelSub[code]=sub;
+    wrap.querySelectorAll('#subTabs button').forEach(function(b){
+      b.classList.toggle('active', b.getAttribute('data-sub')===sub);
     });
-    if(!out) out='<p class="lead" style="margin-top:20px">Không tìm thấy từ nào khớp 🍵</p>';
-    wrap.querySelector('#vbody').innerHTML = out;
+    area.innerHTML='';
+    if(sub==='grammar'){
+      area.innerHTML = (ld.grammar&&ld.grammar.length) ? grammarHTML(ld.grammar) : emptyMsg();
+    } else if(sub==='kanji'){
+      area.innerHTML = (ld.kanji&&ld.kanji.length) ? kanjiSectionsHTML(ld.kanji) : emptyMsg();
+    } else {
+      if(ld.vocab&&ld.vocab.length) area.appendChild(vocabBlock(ld.vocab));
+      else area.innerHTML = emptyMsg();
+    }
   }
-  render('');
-  wrap.addEventListener('input', function(e){ if(e.target.id==='vsearch') render(e.target.value); });
   wrap.addEventListener('click', function(e){
-    var r=e.target.closest('.vrow'); if(r) speak(r.getAttribute('data-say'));
+    var b=e.target.closest('#subTabs button'); if(b){ setSub(b.getAttribute('data-sub')); return; }
+    var x=e.target.closest('.exline'); if(x){ speak(x.getAttribute('data-say')); return; }
+    var c=e.target.closest('.kjcard'); if(c){ speak(c.getAttribute('data-say')); return; }
   });
+  setSub(levelSub[code]||'grammar');
   return wrap;
 }
 
-/* ---------- KANJI ---------- */
-function viewKanji(){
+/* ---------- KAIWA (giao tiếp theo chủ đề) ---------- */
+function viewKaiwa(key){
+  var topics = D.kaiwa||[];
+  if(!topics.length){ var w=el('<div class="view"></div>'); w.innerHTML=emptyMsg(); return w; }
+  if(!key || !topics.some(function(t){return t.key===key;})) key=topics[0].key;
+  var t = topics.filter(function(x){return x.key===key;})[0];
   var wrap = el('<div class="view"></div>');
-  var html = '<div class="page-head"><span class="chip yellow">CHƯƠNG 7</span>'+
-    '<h1 class="title">Kanji N5</h1><div class="subtitle">かんじ</div>'+
-    '<p class="lead">98 chữ Hán cốt lõi. Người Việt có lợi thế Hán-Việt! Bấm vào chữ để nghe đọc.</p></div>';
-  D.kanji.forEach(function(g){
-    html += '<h2 class="sec">'+esc(g.title)+'</h2><div class="kjgrid">';
-    g.items.forEach(function(k){
-      html += '<div class="kjcard" data-say="'+esc(k.ch)+'">'+
-        '<div class="ch jp">'+esc(k.ch)+'</div>'+
-        '<div class="info"><div class="mean">'+esc(k.mean)+'</div>'+
-        '<div class="yomi"><b class="on">On:</b> <span class="jp">'+esc(k.on)+'</span></div>'+
-        '<div class="yomi"><b class="kun">Kun:</b> <span class="jp">'+esc(k.kun)+'</span></div>'+
-        '<div class="smp jp">'+k.samples.map(esc).join('<br>')+'</div></div></div>';
+  var tabs = topics.map(function(x){
+    return '<a class="pill'+(x.key===key?' active':'')+'" href="#kaiwa/'+x.key+'">'+esc(x.title)+'</a>';
+  }).join('');
+  var html = '<div class="page-head"><span class="chip mint">GIAO TIẾP</span>'+
+    '<h1 class="title">Hội thoại · Kaiwa</h1><div class="subtitle">会話</div>'+
+    '<p class="lead">Học giao tiếp theo tình huống thực tế. Bấm vào câu để nghe phát âm.</p></div>'+
+    '<div class="kana-tabs">'+tabs+'</div>'+
+    '<div class="page-head" style="margin:8px 0 14px"><h2 class="title" style="font-size:23px">'+esc(t.title)+'</h2><div class="subtitle">'+esc(t.jp)+'</div></div>';
+  (t.dialogs||[]).forEach(function(d){
+    html += '<div class="gcard" style="border-left-color:var(--mint)"><h3>💬 '+esc(d.title)+'</h3>';
+    d.lines.forEach(function(l){
+      html += '<div class="exline" data-say="'+esc(l.jp)+'">'+
+        '<div><div class="ej jp"><b style="color:var(--mint)">'+esc(l.sp)+':</b> '+esc(l.jp)+'</div>'+
+        '<div class="er">'+esc(l.romaji)+'</div><div class="ev">'+esc(l.vi)+'</div></div>'+
+        '<span class="spk">🔊</span></div>';
     });
     html += '</div>';
   });
-  html += markDoneBtn('kanji');
+  if(t.phrases && t.phrases.length){
+    html += '<h2 class="sec">Mẫu câu hữu ích</h2><div class="vgrid">'+ t.phrases.map(vrow).join('') +'</div>';
+  }
+  html += markDoneBtn('kaiwa');
   wrap.innerHTML = html;
   wrap.addEventListener('click', function(e){
-    var c=e.target.closest('.kjcard'); if(c) speak(c.getAttribute('data-say'));
+    var x=e.target.closest('.exline'); if(x){ speak(x.getAttribute('data-say')); return; }
+    var r=e.target.closest('.vrow'); if(r){ speak(r.getAttribute('data-say')); return; }
   });
   return wrap;
 }
 
-/* ---------- FLASHCARDS (vocab) ---------- */
+/* ---------- INDUSTRY (từ vựng chuyên ngành) ---------- */
+function viewIndustry(key){
+  var inds = D.industry||[];
+  if(!inds.length){ var w=el('<div class="view"></div>'); w.innerHTML=emptyMsg(); return w; }
+  if(!key || !inds.some(function(x){return x.key===key;})) key=inds[0].key;
+  var it = inds.filter(function(x){return x.key===key;})[0];
+  var wrap = el('<div class="view"></div>');
+  var tabs = inds.map(function(x){
+    return '<a class="pill'+(x.key===key?' active':'')+'" href="#industry/'+x.key+'">'+x.icon+' '+esc(x.title)+'</a>';
+  }).join('');
+  var html = '<div class="page-head"><span class="chip sky">CHUYÊN NGÀNH</span>'+
+    '<h1 class="title">Từ vựng theo ngành</h1><div class="subtitle">専門用語</div>'+
+    '<p class="lead">Từ vựng chuyên môn cho công việc thực tế tại Nhật. Bấm để nghe phát âm.</p></div>'+
+    '<div class="kana-tabs">'+tabs+'</div>'+
+    '<div class="page-head" style="margin:8px 0 10px"><h2 class="title" style="font-size:23px">'+it.icon+' '+esc(it.title)+'</h2><div class="subtitle">'+esc(it.jp)+'</div></div>';
+  (it.groups||[]).forEach(function(g){
+    html += '<h2 class="sec">'+esc(g.title)+'</h2><div class="vgrid">'+ g.items.map(vrow).join('') +'</div>';
+  });
+  html += markDoneBtn('industry');
+  wrap.innerHTML = html;
+  wrap.addEventListener('click', function(e){
+    var r=e.target.closest('.vrow'); if(r) speak(r.getAttribute('data-say'));
+  });
+  return wrap;
+}
+
+/* ---------- FLASHCARDS (chọn bộ thẻ) ---------- */
+function allDecks(){
+  var decks = [{key:'N5',label:'🌱 Từ vựng N5',sections:D.vocab}];
+  ['N4','N3','N2','N1'].forEach(function(c){
+    var ld = D.levels && D.levels[c];
+    if(ld && ld.vocab && ld.vocab.length) decks.push({key:c,label:'📘 Từ vựng '+c,sections:ld.vocab});
+  });
+  (D.industry||[]).forEach(function(it){
+    decks.push({key:'ind-'+it.key,label:it.icon+' '+it.title,sections:it.groups});
+  });
+  return decks;
+}
+function flattenDeck(sections){
+  var pool=[]; (sections||[]).forEach(function(s){ (s.items||[]).forEach(function(it){ pool.push(it); }); });
+  return pool;
+}
 function viewFlash(){
-  var pool = [];
-  D.vocab.forEach(function(s){ s.items.forEach(function(it){ pool.push(it); }); });
-  pool = shuffle(pool);
+  var decks = allDecks();
+  var deckKey = decks[0].key;
+  var pool = shuffle(flattenDeck(decks[0].sections));
   var i=0, flipped=false;
   var wrap = el('<div class="view"></div>');
   wrap.innerHTML = '<div class="page-head"><span class="chip pink">LUYỆN TẬP</span>'+
     '<h1 class="title">Flashcard từ vựng</h1><div class="subtitle">フラッシュカード</div>'+
-    '<p class="lead">Nhìn chữ Nhật, đoán nghĩa, rồi bấm thẻ để lật. 🔊 nghe phát âm.</p></div>'+
+    '<p class="lead">Chọn bộ thẻ, nhìn chữ Nhật đoán nghĩa rồi bấm thẻ để lật. 🔊 nghe phát âm.</p></div>'+
+    '<div class="toggle-row"><label class="switch">Bộ thẻ: '+
+      '<select class="deck-sel" id="deckSel">'+ decks.map(function(d){return '<option value="'+d.key+'">'+esc(d.label)+'</option>';}).join('') +'</select>'+
+    '</label></div>'+
     '<div class="center-wrap">'+
       '<div class="flash" id="flash"></div>'+
       '<div class="flash-hint" id="fcount"></div>'+
@@ -303,16 +419,24 @@ function viewFlash(){
   function draw(){
     var c=pool[i];
     var f=wrap.querySelector('#flash');
+    if(!c){ f.innerHTML='<div class="fvi">Bộ thẻ trống</div>'; wrap.querySelector('#fcount').textContent=''; return; }
     f.innerHTML = flipped
       ? '<div class="from">'+esc(c.romaji)+'</div><div class="fvi">'+esc(c.vi)+'</div>'
       : '<div class="fbig jp">'+esc(c.jp)+'</div>';
     wrap.querySelector('#fcount').textContent = 'Thẻ '+(i+1)+' / '+pool.length+' · bấm thẻ để lật';
   }
+  function loadDeck(k){
+    var d = decks.filter(function(x){return x.key===k;})[0]||decks[0];
+    deckKey=d.key; pool=shuffle(flattenDeck(d.sections)); i=0; flipped=false; draw();
+  }
+  wrap.addEventListener('change', function(e){
+    if(e.target.id==='deckSel'){ loadDeck(e.target.value); }
+  });
   wrap.addEventListener('click', function(e){
     if(e.target.closest('#flash')){ flipped=!flipped; draw(); }
-    else if(e.target.closest('#fNext')){ i=(i+1)%pool.length; flipped=false; draw(); }
+    else if(e.target.closest('#fNext')){ if(!pool.length)return; i=(i+1)%pool.length; flipped=false; draw(); }
     else if(e.target.closest('#fShuffle')){ pool=shuffle(pool); i=0; flipped=false; draw(); toast('Đã xáo trộn'); }
-    else if(e.target.closest('#fSpeak')){ speak(pool[i].jp); }
+    else if(e.target.closest('#fSpeak')){ if(pool[i]) speak(pool[i].jp); }
   });
   draw();
   return wrap;
@@ -373,7 +497,7 @@ function viewQuiz(){
   var pool = shuffle(D.quiz);
   var i=0, score=0, answered=false;
   var wrap = el('<div class="view"></div>');
-  wrap.innerHTML = '<div class="page-head"><span class="chip sky">CHƯƠNG 8</span>'+
+  wrap.innerHTML = '<div class="page-head"><span class="chip sky">TRẮC NGHIỆM</span>'+
     '<h1 class="title">Trắc nghiệm N5</h1><div class="subtitle">クイズ</div>'+
     '<p class="lead">Chọn đáp án đúng để điền vào chỗ trống. Điểm cao nhất: '+quizBest()+'%</p></div>'+
     '<div class="quizbox" id="qbox"></div>';
@@ -397,7 +521,7 @@ function viewQuiz(){
       '<p class="lead" style="text-align:center">Đúng '+score+'/'+pool.length+' câu! '+
       (pct>=80?'Sẵn sàng thi N5 rồi 🎉':'Ôn lại ngữ pháp rồi thử lại nhé 📘')+'</p>'+
       '<div class="row-btns"><button class="btn" id="again">Làm lại</button>'+
-      '<a class="btn ghost" href="#grammar">← Ôn ngữ pháp</a></div></div>';
+      '<a class="btn ghost" href="#levels">← Ôn ngữ pháp</a></div></div>';
     wrap.querySelector('#again').onclick=function(){ pool=shuffle(D.quiz); i=0; score=0; q(); };
   }
   wrap.addEventListener('click', function(e){
@@ -431,9 +555,13 @@ function route(){
     case 'hiragana': view=viewKana('hiragana'); break;
     case 'katakana': view=viewKana('katakana'); break;
     case 'greetings': view=viewGreet(); break;
-    case 'grammar': view=viewGrammar(); break;
-    case 'vocab': view=viewVocab(); break;
-    case 'kanji': view=viewKanji(); break;
+    case 'levels': view=viewLevels(); break;
+    case 'level': view=viewLevel(arg); break;
+    case 'kaiwa': view=viewKaiwa(arg); break;
+    case 'industry': view=viewIndustry(arg); break;
+    case 'grammar': view=viewLevel('N5'); break;   // tương thích link cũ
+    case 'vocab': view=viewLevel('N5'); break;
+    case 'kanji': view=viewLevel('N5'); break;
     case 'flashcards': view=viewFlash(); break;
     case 'kana-quiz': view=viewKanaQuiz(arg); break;
     case 'quiz': view=viewQuiz(); break;
@@ -441,8 +569,11 @@ function route(){
   }
   app.innerHTML=''; app.appendChild(view);
   // active tab
+  var navKey = name;
+  if(name==='level') navKey='levels';
+  if(name==='grammar'||name==='vocab'||name==='kanji') navKey='levels';
   document.querySelectorAll('nav.tabs a').forEach(function(a){
-    a.classList.toggle('active', a.getAttribute('href')==='#'+name);
+    a.classList.toggle('active', a.getAttribute('href')==='#'+navKey);
   });
   document.getElementById('tabs').classList.remove('open');
   window.scrollTo(0,0);

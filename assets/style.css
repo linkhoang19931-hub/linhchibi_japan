@@ -106,6 +106,10 @@ h2.sec::before{content:"";width:13px;height:13px;border-radius:50%;background:va
 .kana-tabs button,.pill{font-family:var(--disp);font-weight:700;font-size:14px;border:2px solid var(--pink-l);
   background:#fff;color:var(--ink-soft);padding:7px 16px;border-radius:20px;cursor:pointer;transition:.15s;}
 .kana-tabs button.active{background:var(--pink);color:#fff;border-color:var(--pink);}
+.pill.active{background:var(--pink);color:#fff;border-color:var(--pink);box-shadow:0 3px 9px rgba(255,124,163,.3);}
+.deck-sel{font-family:var(--disp);font-weight:700;font-size:14px;color:var(--ink);background:#fff;
+  border:2px solid var(--pink-l);border-radius:18px;padding:6px 12px;cursor:pointer;outline:none;}
+.deck-sel:focus{border-color:var(--pink);}
 .toggle-row{display:flex;gap:14px;align-items:center;margin-bottom:16px;flex-wrap:wrap;}
 .switch{display:flex;align-items:center;gap:7px;font-weight:700;color:var(--ink-soft);font-size:14px;cursor:pointer;}
 .switch input{accent-color:var(--pink);width:17px;height:17px;}
